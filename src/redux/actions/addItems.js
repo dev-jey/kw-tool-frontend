@@ -28,15 +28,15 @@ function getRandomInt(min, max) {
 const baseUrl = `http://3.141.245.71/api/v2/workflow/`
 
 
-export const addProductRequest = (data, workflow_id) => async (dispatch) => {
+export const addProductRequest = (products_, modifiers, workflow_id) => async (dispatch) => {
   dispatch(addProductAction());
-  const products = data.map(product => { return { "name": product.name } })
+  const products = products_.map(product => { return { "name": product.value } })
   return axios
     .post(`${baseUrl}${workflow_id}/products/`, products)
     .then((response) => {
-      response.data.percentage = getRandomInt(0, 8)
+      response.data.percentage = getRandomInt(10, 18)
       dispatch(addProductSuccess(response.data));
-      dispatch(getWorkflowRequest(workflow_id, data))
+      dispatch(getWorkflowRequest(workflow_id, products_, modifiers))
     })
     .catch((error) => {
       dispatch(addProductFailure(error));
@@ -72,14 +72,14 @@ export const addProductRequest = (data, workflow_id) => async (dispatch) => {
 
 
 
-export const addWorkflowRequest = (data) => async (dispatch) => {
+export const addWorkflowRequest = (products, modifiers) => async (dispatch) => {
   dispatch(addWorkflowAction());
   return axios
     .post(`${baseUrl}`)
     .then((response) => {
-      response.data.percentage = getRandomInt(8, 18)
+      response.data.percentage = getRandomInt(6, 10)
       dispatch(addWorkflowSuccess(response.data));
-      dispatch(addProductRequest(data, response.data && response.data.id))
+      dispatch(addProductRequest(products, modifiers, response.data && response.data.id))
     })
     .catch((error) => {
       dispatch(addWorkflowFailure(error));
@@ -89,26 +89,43 @@ export const addWorkflowRequest = (data) => async (dispatch) => {
 
 
 
-export const getWorkflowRequest = (workflow_id, data) => async (dispatch) => {
+export const getWorkflowRequest = (workflow_id, products, modifiers) => async (dispatch) => {
   dispatch(getWorkflowAction());
   return axios
     .get(`${baseUrl}${workflow_id}`)
     .then((response) => {
-      response.data.percentage = getRandomInt(18, 20)
+      response.data.percentage = getRandomInt(18, 30)
       dispatch(getWorkflowSuccess(response.data));
-      response.data.product_lines.forEach((item) => {
-        data.forEach((prod) => {
-          if (item.name === prod.name) {
-            prod["new_id"] = item.id
-            if (prod.modifiers) {
-              dispatch(addModifierRequest(prod, workflow_id));
+      let newMods = []
+      if (modifiers.length) {
+        modifiers.map(mod => {
+          products.forEach(prod => {
+            if (prod.id === mod.prodId) {
+              mod['prodName'] = prod.value
             }
-          }
+          })
+          return mod
+        })
+
+        response.data.product_lines.forEach((item) => {
+          modifiers.forEach((mod) => {
+            if (item.name === mod.prodName) {
+              mod['newProdId'] = item.id
+              newMods.push(mod)
+            }
+          });
         });
-      });
-      setTimeout(() => {
+        modifiers.forEach(mod => {
+          dispatch(addModifierRequest(mod, workflow_id));
+        })
+
+        setTimeout(() => {
+          dispatch(getSynonymRequest(workflow_id))
+        }, 3000)
+      } else {
         dispatch(getSynonymRequest(workflow_id))
-      }, 3000)
+      }
+
     })
     .catch((error) => {
       dispatch(getWorkflowFailure(error));
@@ -121,7 +138,7 @@ export const getSynonymRequest = (workflow_id) => async (dispatch) => {
   return axios
     .get(`${baseUrl}${workflow_id}/synonymize/`)
     .then((response) => {
-      response.data.percentage = getRandomInt(20, 53)
+      response.data.percentage = getRandomInt(30, 53)
       dispatch(getWorkflowSuccess(response.data));
       dispatch(getConcatenationRequest(workflow_id))
     })
@@ -164,12 +181,13 @@ export const getValidatedDataRequest = (workflow_id) => async (dispatch) => {
 
 
 
-export const addModifierRequest = (product, workflow_id) => async (dispatch) => {
+export const addModifierRequest = (mod, workflow_id) => async (dispatch) => {
   dispatch(addModifierAction());
-  const mods = product.modifiers.map(mod => { return { "name": mod } })
+  const mod_ = [mod].map(mod => { return { "name": mod.value } })
   return axios
-    .post(`${baseUrl}${workflow_id}/product/${product.new_id}/modifiers/`, mods)
+    .post(`${baseUrl}${workflow_id}/product/${mod.newProdId}/modifiers/`, mod_)
     .then((response) => {
+      response.data.percentage = 30
       dispatch(addModifierSuccess(response.data));
     })
     .catch((error) => {

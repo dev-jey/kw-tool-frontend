@@ -5,7 +5,7 @@ const initialState = {
   isLoading: false,
   isSuccessFul: false,
   error: null,
-  percentage: 0,
+  percentage: 6,
 };
 
 

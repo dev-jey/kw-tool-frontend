@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useReducer } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { addWorkflowRequest } from "../../redux/actions/addItems";
 import ModifierComponent from "./ModifierComponent";
@@ -6,31 +6,26 @@ import { useBeforeunload } from 'react-beforeunload';
 import { CSVLink } from "react-csv";
 
 
+
 const Home = () => {
+  const [, forceUpdate] = useReducer(x => x + 1, 0);
   const dispatch = useDispatch()
   const { data: workflow, isLoading } = useSelector((state) => state.addItemsReducer)
   let { percentage } = workflow;
-  const [products, setProducts] = useState(1);
-  const [productNames, setProductNames] = useState({});
-  const [modifierNames, setModifierNames] = useState({});
+  const [productNames, setProductNames] = useState([{ "id": `${getRandomInt(1, 2300)}`, value: '' }]);
+  const [modifierNames, setModifierNames] = useState([]);
   let initialSeconds = 0
   const [minutes, setMinutes] = useState(0);
   const [seconds, setSeconds] = useState(initialSeconds);
 
-  let csvData = [];
+  let headers = [
+    { label: "Name", key: "name" },
+    { label: "Parent Keyword", key: "parent_term" },
+    { label: "Language", key: "language" }
+  ];
+  console.log(workflow.concatenations)
 
-  workflow.concatenations && workflow.concatenations.forEach(function (item) {
-    if (!item.parent_term) {
-      csvData.push([]);
-      csvData.push([item.name]);
-      csvData.push([]);
-    } else {
-
-      csvData.push([item.name]);
-    }
-  })
-
-  csvData && csvData.unshift(["Key Words"])
+  let csvData = workflow.concatenations && workflow.concatenations;
 
   useBeforeunload((event) => {
     event.preventDefault();
@@ -55,61 +50,83 @@ const Home = () => {
     };
   });
 
-  // function getRandomInt(min, max) {
-  //   min = Math.ceil(min);
-  //   max = Math.floor(max);
-  //   return Math.floor(Math.random() * (max - min + 1)) + min;
-  // }
-
+  function getRandomInt(min, max) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
   const onProductChange = (e) => {
-    setProductNames({ ...productNames, [e.target.name]: e.target.value })
+    const newProd = productNames.map(item => {
+      if (item['id'] == e.target.name) {
+        item['value'] = e.target.value
+      }
+      return item
+    })
+    setProductNames(newProd)
   }
 
-
-  const onModifierChange = (e) => {
-    setModifierNames({ ...modifierNames, [e.target.name]: e.target.value })
+  const onModifierChange = (e, prodId) => {
+    const newMod = modifierNames.map(item => {
+      if (item['id'] == e.target.name) {
+        item['value'] = e.target.value
+        item['prodId'] = prodId
+      }
+      return item
+    })
+    setModifierNames(newMod)
   }
-
-  const productFields = [
-    ...Array(products),
-  ].map((product, i) => (
+  const productFields = productNames.map((product, i) => (
     <div className="form-group" key={i}>
-      <input type="text" required className="form-control mb-2" id="productInput" name={i + 1}
-        aria-describedby="product" placeholder="Enter product name" onChange={onProductChange}
-        onKeyPress={(e) => { e.key === 'Enter' && handleSubmit(e); }} />
-      {/* {products > 1 &&
-        <i className="fa fa-times" onClick={(e) => {
-          const newProds = Object.values(productNames).forEach(i => {
-            if (i === e.target.value) {
+      {/* <div className="container"> */}
+      <div className="row mb-4 mx-auto">
+        <div className={`${productNames.length > 1 ? "col-11 gx-2" : "col-12"}`}>
+          <input type="text" required className="form-control mb-2" id="productInput" name={product['id']}
+            value={product.value}
+            maxLength={30}
+            aria-describedby="product" placeholder="Enter product name" onChange={onProductChange}
+            onKeyPress={(e) => { e.key === 'Enter' && handleSubmit(e); }} /></div>
+        <div className="col-1" style={{}}>
+          {productNames.length > 1 &&
+            <button className="fa fa-times"
+              style={{ border: '1px solid silver', borderRadius: "10px", width: "42px", height: "40px", cursor: "pointer" }}
+              name={product['id']} onClick={(e) => {
+                e.preventDefault()
+                let newProds = productNames;
+                let a = []
 
-            }
-          })
-          setProductNames(newProds)
-          setProducts(products - 1)
-        }}></i>
-      } */}
+                let newMods = modifierNames;
+                let b = []
+                newProds.forEach(i => {
+                  if (i['id'] !== e.target.name) {
+                    a.push(i)
+                  } else {
+                    // Delete mods for matching prod
+                    newMods.forEach(mod => {
+                      if (mod.prodId !== i.id) {
+                        b.push(mod)
+                      }
+                    })
+                  }
+                })
+                setProductNames(a)
+                setModifierNames(b)
+                forceUpdate()
+              }}></button>
+          }
+        </div>
+      </div>
+      {/* </div> */}
+
+
     </div>
   ))
 
 
   const handleSubmit = (e) => {
-    e.preventDefault()
-    setMinutes((products + parseInt(Object.values(modifierNames).length)))
-    const modData = {}
-    Object.keys(modifierNames).forEach((mod) => {
-      if (modData[mod[0]]) {
-        modData[mod[0]].push(modifierNames[mod])
-      } else {
-        modData[mod[0]] = [modifierNames[mod]]
-      }
-    })
-    const prodData = Object.values(productNames).map((prod, i) => {
-      return {
-        name: prod,
-        id: i + 1, modifiers: modData[i + 1]
-      }
-    })
-    dispatch(addWorkflowRequest(prodData))
+    e.preventDefault();
+    let mins = modifierNames.length ? (productNames.length + modifierNames.length) / 2 : productNames.length > 1 ? productNames.length / 2 : null;
+    mins ? setMinutes(Math.floor(mins)) : setSeconds(29)
+    dispatch(addWorkflowRequest(productNames, modifierNames))
   }
 
   return <>
@@ -126,34 +143,33 @@ const Home = () => {
           </> : <><h3 className="text-center text-white">Processing...<br />
             <span className="text-center text-white text-italic" style={{ fontSize: "12px" }}>
               <em> Approximately ( {minutes}:{seconds < 10 ? `0${seconds}` : seconds}</em> mins ) remaining.</span>
-          </h3>
+          </h3 >
           </>
           }
           <br /><br />
           <div className="progress" style={{ height: "100px" }}>
             <div className="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" aria-valuenow={percentage} aria-valuemin="0" aria-valuemax="100" style={{ width: `${percentage}%` }}>{percentage}%</div>
           </div>
-        </div>
-      </div>
+        </div >
+      </div >
     }
     <div className="container" style={{ display: "grid", placeItems: "center", minHeight: "100vh", margin: "auto", padding: "0" }}>
-      <div className="m-4 w-100">
-        <br />
-        <h1>KEYWORD TOOL</h1>
-        <br />
-        <hr></hr><br /><br />
+      <div className="mx-4 w-100">
+        <h1><br />KEYWORD TOOL</h1>
+        <hr></hr><br />
         <h4>Product</h4>
         <br />
         <form onSubmit={handleSubmit}>
           {productFields}
-          <br />
-          {products < 5 &&
-            <button className="btn btn-success btn-sm"
+          {productNames.length < 5 &&
+            <button className="btn btn-success btn-sm mx-2"
               onClick={(e) => {
                 e.preventDefault()
-                setProducts(products + 1)
+                setProductNames([...productNames, {
+                  "id": `${getRandomInt(productNames.length, 1000) + getRandomInt(productNames.length, 1000)}`, value: ''
+                }])
               }}
-              disabled={Object.values(productNames).length !== products}
+              disabled={productNames.map(x => { return x['value'] }).includes('')}
             >Add Product Name&nbsp;&nbsp;<i className="fa fa-plus"></i></button>
           }
 
@@ -162,19 +178,24 @@ const Home = () => {
           <hr></hr>
           <br></br>
           <br></br>
-          {Object.values(productNames).length > 0 &&
+          {productNames.length > 0 && Object.values(productNames)[0].value &&
             <>
               <h4 className="mb-4">Modifiers (5 max)</h4>
               <br />
-              <div className="">
-                <div className="row">
-                  {Object.values(productNames).map((name, i) => (
-                    <div className="col-sm m-0" key={i}>
-                      <ModifierComponent name={name} id={i + 1} onModifierChange={onModifierChange} modifierNames={modifierNames}
-                        handleSubmit={handleSubmit} />
-                    </div>
-                  ))}
-                </div>
+              {/* <div className="container"> */}
+              <div className="row no-gutters" >
+                {productNames.map((item, i) => (
+                  item.value !== "" &&
+                  <div className="col-sm m-0 p-1" key={i}>
+                    <ModifierComponent name={item.value} prodId={item.id}
+                      setModifierNames={setModifierNames}
+                      forceUpdate={forceUpdate}
+                      getRandomInt={getRandomInt}
+                      onModifierChange={onModifierChange} modifierNames={modifierNames}
+                      handleSubmit={handleSubmit} />
+                  </div>
+                ))}
+                {/* </div> */}
               </div>
               <br></br>
               <br></br>
@@ -231,29 +252,33 @@ const Home = () => {
             <br />
             <br /> */}
             <h2>Keywords {workflow.concatenations && <span>({workflow.concatenations.length})</span>} </h2>
-
-            <CSVLink data={csvData}
-              filename={"keywords.csv"}
-              target="_blank"
-            >Download csv</CSVLink>
-            <br />
-            <div className="row">
-              {workflow.concatenations && workflow.concatenations.map((concat) => (
-                !concat.parent_term ?
-                  <><br></br><br></br>
+            {workflow.concatenations.length < 2 ? <p className="text-danger"><br />No Results Found</p> : <>
+              <CSVLink data={csvData}
+                headers={headers}
+                filename={"keywords.csv"}
+                target="_blank"
+              >Download csv</CSVLink>
+              <br />
+              <div className="row">
+                {workflow.concatenations && workflow.concatenations.map((concat, i) => (
+                  !concat.parent_term &&
+                  <div key={i}><br></br><br></br>
                     <hr></hr>
                     <p className="col-2" style={{
                       border: "solid 1px red", padding: ".25rem", wordWrap: "nowrap",
                       margin: "1rem", borderRadius: "5px", textAlign: "center"
-                    }}>{concat.name}</p>
-                    <br></br><hr></hr><br />
-                  </>
-                  :
-                  <span className="col-2" style={{
+                    }}>{concat.name}</p><hr></hr><br />
+                  </div>
+                ))}
+                {workflow.concatenations && workflow.concatenations.map((concat, i) => (
+                  concat.parent_term &&
+                  <span className="col-2" key={i} style={{
                     border: "solid 1px silver", padding: ".25rem", wordWrap: "nowrap",
                     margin: "1rem", borderRadius: "5px", textAlign: "center"
                   }}>{concat.name}</span>
-              ))}</div>
+                ))}</div>
+            </>
+            }
             {/* <hr />
             <br />
             Workflow ID: {workflow.id}
